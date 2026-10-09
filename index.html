@@ -1,0 +1,614 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kommandozentrale</title>
+<style>
+  :root {
+    --bg: #12060a;
+    --sonne: #ff8a3d;
+    --glut: #ff5a3c;
+    --gold: #ffcf7a;
+    --rose: #d8506a;
+    --text: #ffe9d6;
+    --muted: #c58f7a;
+    --panel: rgba(46, 14, 18, .7);
+    --line: rgba(255, 138, 61, .3);
+    --rot: #ff4d4d; --gelb: #ffc247; --gruen: #7fd18a;
+  }
+  * { box-sizing: border-box; margin: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(ellipse 70% 38% at 50% 78%, rgba(255, 90, 60, .28), transparent 70%),
+      linear-gradient(180deg, #1a0a1f 0%, #2a0c1c 38%, #3b0f16 72%, #12060a 100%);
+    color: var(--text);
+    font-family: "Segoe UI", system-ui, sans-serif;
+    overflow: hidden;
+  }
+  body::after { content: ""; position: fixed; inset: 0; pointer-events: none;
+    background: repeating-linear-gradient(0deg, rgba(0,0,0,.1) 0 1px, transparent 1px 3px); }
+  .grid {
+    height: 100vh; display: grid; gap: 14px; padding: 16px 20px;
+    grid-template-columns: minmax(270px, 1fr) minmax(320px, 1.15fr) minmax(270px, 1fr);
+    grid-template-rows: auto minmax(0, 1fr) auto auto;
+    grid-template-areas: "kopf kopf kopf" "links mitte rechts" "unten unten unten" "fuss fuss fuss";
+  }
+  .kopf { grid-area: kopf; display: flex; justify-content: space-between; align-items: baseline; border-bottom: 1px solid var(--line); padding-bottom: 8px; }
+  .kopf .titel { letter-spacing: .35em; text-transform: uppercase; color: var(--sonne); font-size: 15px; }
+  .kopf .uhr { font-size: 32px; font-weight: 200; letter-spacing: .08em; font-variant-numeric: tabular-nums; }
+  .kopf .datum { color: var(--muted); font-size: 14px; margin-left: 14px; }
+  .spalte { display: flex; flex-direction: column; gap: 12px; min-height: 0; overflow-y: auto; padding-right: 4px; }
+  .spalte::-webkit-scrollbar { width: 6px; } .spalte::-webkit-scrollbar-thumb { background: var(--line); border-radius: 3px; }
+  .links { grid-area: links; } .rechts { grid-area: rechts; }
+  .unten { grid-area: unten; } .unten ol { list-style: none; display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 8px 18px; }
+  .unten li { border: 0; padding: 2px 0; }
+  .panel {
+    background: var(--panel); border: 1px solid var(--line); border-radius: 4px; padding: 11px 14px;
+    clip-path: polygon(0 0, calc(100% - 14px) 0, 100% 14px, 100% 100%, 14px 100%, 0 calc(100% - 14px));
+  }
+  .panel h2 { font-size: 11px; font-weight: 600; letter-spacing: .28em; text-transform: uppercase; color: var(--sonne); margin-bottom: 7px; display: flex; justify-content: space-between; align-items: center; }
+  ul { list-style: none; padding: 0; }
+  li { padding: 5px 0; font-size: 14px; line-height: 1.35; border-bottom: 1px dashed rgba(255,138,61,.14); }
+  li:last-child { border-bottom: 0; }
+  li.fertig { opacity: .45; text-decoration: line-through; }
+  .tag { display: inline-block; min-width: 30px; margin-right: 8px; font-size: 11px; color: var(--bg); background: var(--sonne); padding: 1px 6px; border-radius: 2px; font-weight: 700; text-align: center; }
+  .tag.B { background: var(--gold); } .tag.C { background: var(--muted); }
+  .tag.Frist { background: var(--rot); } .tag.offen { background: var(--gelb); } .tag.Termin { background: var(--rose); color: #fff; }
+  .klein { color: var(--muted); font-size: 12px; }
+  .ampel { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 8px currentColor; }
+  .rot { color: var(--rot); background: var(--rot); } .gelb { color: var(--gelb); background: var(--gelb); } .gruen { color: var(--gruen); background: var(--gruen); }
+  .tage { float: right; font-size: 12px; color: var(--muted); }
+  .warn { border-color: var(--gelb); color: var(--gelb); font-size: 13px; }
+  .hinweis { font-size: 13px; line-height: 1.4; color: var(--gold); }
+  .balken { height: 8px; background: rgba(255,255,255,.08); border-radius: 4px; overflow: hidden; margin: 6px 0 4px; }
+  .balken > i { display: block; height: 100%; background: linear-gradient(90deg, var(--glut), var(--gold)); }
+  .mitte { grid-area: mitte; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 0; }
+  canvas { width: min(100%, 50vh); aspect-ratio: 1; }
+  .zustand { letter-spacing: .4em; text-transform: uppercase; font-size: 13px; color: var(--sonne); min-height: 18px; }
+  .antwort { margin-top: 8px; text-align: center; font-size: 17px; line-height: 1.45; max-width: 470px; min-height: 52px; }
+  .gehoert { color: var(--muted); font-size: 13px; min-height: 18px; margin-top: 4px; }
+  .fuss { grid-area: fuss; display: flex; gap: 10px; align-items: center; border-top: 1px solid var(--line); padding-top: 10px; flex-wrap: wrap; }
+  .fuss input { flex: 1; min-width: 180px; background: rgba(0,0,0,.35); border: 1px solid var(--line); color: var(--text); padding: 10px 12px; font-size: 15px; border-radius: 3px; outline: none; }
+  .fuss input:focus { border-color: var(--sonne); }
+  button { background: transparent; color: var(--sonne); border: 1px solid rgba(255,138,61,.5); padding: 9px 13px; font-size: 12px; letter-spacing: .12em; text-transform: uppercase; cursor: pointer; border-radius: 3px; font-family: inherit; }
+  button:hover { background: rgba(255,138,61,.14); }
+  button.an { background: var(--sonne); color: var(--bg); }
+  button.mini { padding: 3px 8px; font-size: 10px; }
+  .abfrage li { cursor: pointer; } .abfrage li::before { content: "☐ "; color: var(--sonne); } .abfrage li.fertig::before { content: "☑ "; }
+  /* Vorführung (fürs Video) */
+  .panel { transition: opacity .5s, transform .5s, background .5s, border-color .5s, box-shadow .5s; }
+  .panel.verborgen { opacity: 0; transform: translateY(16px); }
+  .panel.einblenden { animation: flackern .55s; }
+  body.dim .panel:not(.im-licht) { opacity: .25; }
+  .panel.im-licht { background: rgba(96, 30, 24, .9); border-color: var(--gold); box-shadow: inset 0 0 30px rgba(255, 138, 61, .3); transform: scale(1.02); }
+  body.show { cursor: none; }
+  body.show .fuss { opacity: 0; pointer-events: none; }
+  body.show .antwort { min-height: 110px; }
+  .antwort { white-space: pre-line; }
+  .scan { position: fixed; left: 0; right: 0; top: -14%; height: 14%; pointer-events: none; z-index: 5; opacity: 0; background: linear-gradient(180deg, transparent, rgba(255, 160, 80, .3), transparent); }
+  .scan.lauf { animation: scanfahrt 1.8s ease-in forwards; }
+  @keyframes scanfahrt { from { top: -14%; opacity: 1; } to { top: 100%; opacity: 1; } }
+  @keyframes flackern { 0% { opacity: 0; } 20% { opacity: 1; } 30% { opacity: .2; } 45% { opacity: 1; } 55% { opacity: .5; } 100% { opacity: 1; } }
+  @media (max-width: 900px) {
+    body { overflow: auto; }
+    .grid { height: auto; grid-template-columns: 1fr; grid-template-areas: "kopf" "mitte" "links" "rechts" "unten" "fuss"; }
+    .spalte { overflow: visible; }
+  }
+</style>
+</head>
+<body>
+<div class="scan" id="scan"></div>
+<div class="grid">
+  <div class="kopf">
+    <div class="titel">Kommandozentrale · Giuseppe</div>
+    <div><span class="uhr" id="uhr">--:--</span><span class="datum" id="datum"></span></div>
+  </div>
+
+  <div class="spalte links">
+    <div class="panel warn" id="warnung" hidden></div>
+    <div class="panel"><h2>Heute <span class="klein" id="heuteZaehler"></span></h2><ul id="heute"></ul></div>
+    <div class="panel"><h2>Fristen</h2><ul id="fristen"></ul></div>
+    <div class="panel"><h2>Von gestern <button class="mini" id="nichts">Noch nichts erledigt</button></h2><ul class="abfrage" id="gestern"></ul><div class="klein">Haken gelten nur hier. Sag Claude beim nächsten Bericht, was du erledigt hast.</div></div>
+  </div>
+
+  <div class="mitte">
+    <canvas id="orb" width="760" height="760"></canvas>
+    <div class="zustand" id="zustand">bereit</div>
+    <div class="antwort" id="antwort">Halte die <b>Leertaste</b> gedrückt oder klicke auf <b>Sprechen</b>. Sag zum Beispiel: „Bericht“ oder „Was steht heute an?“</div>
+    <div class="gehoert" id="gehoert"></div>
+  </div>
+
+  <div class="spalte rechts">
+    <div class="panel"><h2>Fokus</h2><div id="fokus"></div></div>
+    <div class="panel"><h2>Dynamic Upscale</h2><div id="gespraeche"></div></div>
+    <div class="panel"><h2>Diese Woche</h2><ul id="woche"></ul><div class="klein" id="spaeter"></div></div>
+    <div class="panel"><h2>Baustellen</h2><ul id="baustellen"></ul></div>
+    <div class="panel"><h2>Hinweise</h2><div id="hinweise" class="hinweis"></div><div class="klein" id="wartet" style="margin-top:6px"></div></div>
+    <div class="panel"><h2>Geld <button class="mini" id="geldknopf">Zahlen zeigen</button></h2><div id="geld" class="klein">verborgen</div></div>
+    <div class="panel"><h2>Ideen-Eingang</h2><ul id="ideen"></ul><div class="klein" id="ideenhinweis"></div></div>
+  </div>
+
+  <div class="panel unten"><h2>Warteschlange <span class="klein">nicht aktiv, belegt keinen Platz</span></h2><ol id="warteschlange"></ol></div>
+
+  <div class="fuss">
+    <button id="sprechen">Sprechen</button>
+    <button id="bericht">Bericht vorlesen</button>
+    <button id="vorfuehrung" title="Taste V, Abbruch mit Esc">Vorführung</button>
+    <button id="dauer" title="Taste J: wartet auf „Hey Jarvis“">Dauerhören: aus</button>
+    <button id="video" title="Taste M: nur Beispieldaten, nichts Echtes">Video-Modus: aus</button>
+    <input id="eingabe" placeholder="Oder tippe einen Befehl … (z. B. „hilfe“)" autocomplete="off">
+    <button id="stumm">Stimme: an</button>
+  </div>
+</div>
+
+<script src="heute.js"></script>
+<script src="dialoge.js"></script>
+<script>
+"use strict";
+const $ = id => document.getElementById(id);
+const D = Object.assign({ stand: "", heute: [], fristen: [], woche: [], spaeter: [], gestern: [], wartet: [], hinweise: [], baustellen: [], warteschlange: [], fokus: { belegt: 0, max: 2, namen: [] }, gespraeche: { zahl: null, ziel: 10 }, geld: "" }, window.HEUTE || {});
+const sicher = f => { try { return f(); } catch (e) { return null; } };
+const esc = s => String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const speicher = { lies: (k, v) => sicher(() => JSON.parse(localStorage.getItem(k))) ?? v, schreib: (k, v) => sicher(() => localStorage.setItem(k, JSON.stringify(v))) };
+
+// ---------- Uhr und Datum ----------
+const tage = ["Sonntag","Montag","Dienstag","Mittwoch","Donnerstag","Freitag","Samstag"];
+const monate = ["Januar","Februar","März","April","Mai","Juni","Juli","August","September","Oktober","November","Dezember"];
+const iso = d => d.getFullYear() + "-" + String(d.getMonth()+1).padStart(2,"0") + "-" + String(d.getDate()).padStart(2,"0");
+const heuteIso = iso(new Date());
+function tick() {
+  const n = new Date();
+  $("uhr").textContent = n.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" });
+  $("datum").textContent = tage[n.getDay()] + ", " + n.getDate() + ". " + monate[n.getMonth()] + " " + n.getFullYear();
+}
+tick(); setInterval(tick, 10000);
+
+// ---------- Erledigt-Haken (nur Browser, pro Tag) ----------
+const key = "erledigt-" + heuteIso;
+let erledigt = speicher.lies(key, {});
+const fertig = t => !!erledigt[t];
+function haken(t) { erledigt[t] = !erledigt[t]; speicher.schreib(key, erledigt); alles(); }
+
+// ---------- Anzeige ----------
+function liste(id, items, fn, klasse) {
+  const ul = $(id); ul.innerHTML = "";
+  if (!items.length) { ul.innerHTML = '<li class="klein">nichts eingetragen</li>'; return; }
+  items.forEach(i => { const li = document.createElement("li"); li.innerHTML = fn(i); const k = klasse && klasse(i); if (k) li.className = k.cls; if (k && k.klick) li.onclick = k.klick; ul.appendChild(li); });
+}
+function tageBis(d) { const a = new Date(heuteIso + "T00:00:00"), b = new Date(d + "T00:00:00"); return Math.round((b - a) / 864e5); }
+function ampel(n) { return n <= 3 ? "rot" : n <= 7 ? "gelb" : "gruen"; }
+function countdown(n) { return n < 0 ? "überfällig" : n === 0 ? "heute" : n === 1 ? "morgen" : "in " + n + " Tagen"; }
+
+function alles() {
+  liste("heute", D.heute, i => `<span class="tag ${esc(i.art)}">${esc(i.art)}</span>${esc(i.text)}`, i => ({ cls: fertig(i.text) ? "fertig" : "", klick: () => haken(i.text) }));
+  const offen = D.heute.filter(i => !fertig(i.text)).length;
+  $("heuteZaehler").textContent = offen + " von " + D.heute.length + " offen";
+  liste("fristen", D.fristen.slice().sort((a, b) => a.datum.localeCompare(b.datum)), f => { const n = tageBis(f.datum); return `<span class="ampel ${ampel(n)}"></span>${esc(f.text)}<span class="tage">${countdown(n)}</span>`; });
+  liste("gestern", D.gestern, t => esc(t), t => ({ cls: fertig("g:" + t) ? "fertig" : "", klick: () => haken("g:" + t) }));
+  const f = D.fokus; $("fokus").innerHTML = `<b>${f.belegt} von ${f.max}</b> Aufbauplätzen belegt` + `<div class="balken"><i style="width:${Math.min(100, f.belegt / f.max * 100)}%"></i></div><div class="klein">${(f.namen || []).map(esc).join(" · ")}</div>` + (f.belegt >= f.max ? '<div class="klein">Voll. Neues Projekt nur, wenn eines weicht.</div>' : "");
+  const g = D.gespraeche; $("gespraeche").innerHTML = g.zahl == null ? `Gespräche diese Woche: <b>noch nicht erfasst</b> (Ziel ${g.ziel})` : `<b>${g.zahl} von ${g.ziel}</b> Gesprächen diese Woche<div class="balken"><i style="width:${Math.min(100, g.zahl / g.ziel * 100)}%"></i></div>`;
+  liste("woche", D.woche, i => `<b>${esc(i.wann)}</b> · ${esc(i.text)}`);
+  $("spaeter").textContent = D.spaeter.length ? "Später: " + D.spaeter.join(" · ") : "";
+  liste("warteschlange", D.warteschlange, (i, n) => `<span class="tag C">${esc(i.name)}</span><div class="klein">${esc(i.schritt)}</div>`);
+  liste("baustellen", D.baustellen, i => `<span class="tag ${esc(i.prio[0])}">${esc(i.prio)}</span>${esc(i.name)}<div class="klein">${esc(i.schritt)}</div>`);
+  $("hinweise").innerHTML = D.hinweise.map(h => "• " + esc(h)).join("<br>") || '<span class="klein">keine</span>';
+  $("wartet").textContent = D.wartet.length ? "Wartet auf andere: " + D.wartet.join(" · ") : "";
+}
+alles();
+if (D.stand !== heuteIso) { const w = $("warnung"); w.hidden = false; w.textContent = "Achtung: Tagesdaten stammen vom " + (D.stand || "unbekannt") + ". Bitte Claude bitten, sie zu aktualisieren."; }
+
+$("nichts").onclick = () => { D.gestern.forEach(t => delete erledigt["g:" + t]); speicher.schreib(key, erledigt); alles(); sprich("In Ordnung. Alles bleibt offen und steht morgen oben im Bericht."); };
+let geldSicht = false;
+$("geldknopf").onclick = () => { geldSicht = !geldSicht; $("geld").textContent = geldSicht ? (D.geld || "kein Eintrag") : "verborgen"; $("geldknopf").textContent = geldSicht ? "Zahlen verbergen" : "Zahlen zeigen"; };
+
+// ---------- Ideen (nur im Browser) ----------
+const ideen = () => speicher.lies("ideen", []);
+function ideenZeigen() {
+  const a = ideen();
+  liste("ideen", a.slice(-5).reverse(), i => esc(i));
+  $("ideenhinweis").textContent = a.length ? a.length + " Idee(n) hier gespeichert. Sag Claude: „Ideen übernehmen“." : "";
+}
+ideenZeigen();
+
+// ---------- Antworten ----------
+const nenne = (arr, f) => arr.map(f).join(". ");
+function berichtText() {
+  const n = new Date(), h = n.getHours();
+  const gruss = "Hallo";
+  const offen = D.heute.filter(i => !fertig(i.text));
+  const dringend = D.fristen.map(f => ({ ...f, n: tageBis(f.datum) })).filter(f => f.n >= 0 && f.n <= 3).sort((a, b) => a.n - b.n);
+  let t = gruss + ", Giuseppe. Heute ist " + $("datum").textContent + ". ";
+  if (dringend.length) t += "Dringend: " + nenne(dringend, f => f.text + ", " + countdown(f.n)) + ". ";
+  t += offen.length ? "Heute offen: " + nenne(offen, i => i.text) + "." : "Für heute ist alles erledigt.";
+  return t;
+}
+// Weckwort "Jarvis" (die Spracherkennung schreibt es manchmal anders)
+const WAKE = "jarvis|jarwis|dscharvis|tscharvis|charvis|jervis|jaris";
+const hatWake = t => new RegExp("\\b(" + WAKE + ")\\b", "i").test(t);
+const ohneWake = t => t.replace(new RegExp("\\b(" + WAKE + ")\\b", "gi"), " ").replace(/^\s*(hey|hej|hallo|hi|okay)\b[,\s]*/i, "").replace(/\s+/g, " ").trim();
+const fuelle = s => s.replace("{seiten}", window.SECOND_BRAIN_SEITEN || "viele");
+// Show-Antworten aus dialoge.js; null, wenn keine passt
+function dialogFinden(t) {
+  const D2 = window.DIALOGE || [];
+  const q = t.toLowerCase().replace(/(\d)[.\s](?=\d{3}\b)/g, "$1").replace(new RegExp("\\b(" + WAKE + ")\\b", "g"), " ").replace(/[?!.,]/g, " ").replace(/\b(hey|hej|hallo|hi|okay|ok)\b/g, " ").replace(/\s+/g, " ").trim();
+  if (!q) { const g = D2.find(d => d.nurWake); return g && hatWake(t) ? fuelle(g.sage) : null; }
+  const d = D2.find(d => d.wenn && new RegExp(d.wenn, "i").test(q));
+  return d ? fuelle(d.sage) : null;
+}
+function verarbeiteText(t) {
+  const d = dialogFinden(t);
+  if (d) sage(d, "bereit"); else sprich(antworten(t));
+}
+function antworten(frage) {
+  frage = ohneWake(frage);
+  if (!frage) return "Ich höre, Giuseppe. Sag „Bericht“, wenn du deinen Überblick hören willst.";
+  const q = frage.toLowerCase().replace(/[?!.,]/g, "").trim();
+  let m;
+  if ((m = frage.trim().match(/^(neue )?idee[:,]?\s+(.+)/i))) { const a = ideen(); a.push(m[2]); speicher.schreib("ideen", a); ideenZeigen(); return "Idee gespeichert: " + m[2] + "."; }
+  if ((m = q.match(/^(erledigt|fertig|abgehakt)\s+(.+)/))) {
+    const t = D.heute.find(i => i.text.toLowerCase().includes(m[2]));
+    if (t) { erledigt[t.text] = true; speicher.schreib(key, erledigt); alles(); return "Abgehakt: " + t.text + ". Sag es Claude beim nächsten Bericht."; }
+    return "Dazu habe ich heute keinen Punkt gefunden.";
+  }
+  if (/video.?modus/.test(q)) { const an = !/aus/.test(q); videoSchalten(an); return "Video-Modus " + (an ? "an. Ich nenne nur Beispieldaten." : "aus. Ich nenne wieder die echten Daten."); }
+  if (/vorführung|show/.test(q)) { setTimeout(startShow, 150); return ""; }
+  if (/bericht|dashboard|überblick/.test(q)) return berichtText();
+  if (/frist/.test(q)) return D.fristen.length ? "Fristen: " + nenne(D.fristen.slice().sort((a, b) => a.datum.localeCompare(b.datum)), f => f.text + ", " + countdown(tageBis(f.datum))) + "." : "Keine Fristen eingetragen.";
+  if (/woche|termin|kalender/.test(q)) return D.woche.length ? "Diese Woche: " + nenne(D.woche, t => t.wann + ", " + t.text) + "." : "Keine Termine eingetragen.";
+  if (/gestern|offen/.test(q)) { const o = D.gestern.filter(t => !fertig("g:" + t)); return o.length ? "Von gestern noch offen: " + o.join(", ") + "." : "Von gestern ist alles erledigt."; }
+  if (/fokus|aufbau|platz/.test(q)) return D.fokus.belegt + " von " + D.fokus.max + " Aufbauplätzen belegt: " + (D.fokus.namen || []).join(" und ") + ".";
+  if (/hinweis|erinner/.test(q)) return D.hinweise.length ? D.hinweise.join(" ") : "Keine Hinweise.";
+  if (/geld|konto/.test(q)) return geldSicht ? D.geld : "Zahlen sind verborgen. Klicke auf Zahlen zeigen.";
+  if (/baustelle|projekt|übersicht|stand/.test(q)) { const a = D.baustellen.filter(b => b.prio[0] === "A"); return "Aktiv sind " + a.length + " Baustellen: " + nenne(a, b => b.name) + ". Insgesamt " + D.baustellen.length + " im Board."; }
+  if (/uhr|zeit|spät/.test(q)) return "Es ist " + new Date().toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) + " Uhr.";
+  if (/datum|welcher tag|welches datum/.test(q)) return "Heute ist " + $("datum").textContent + ".";
+  if (/heute|anstehen|zu tun|aufgabe|plan/.test(q)) { const o = D.heute.filter(i => !fertig(i.text)); return o.length ? "Heute im Fokus: " + nenne(o, i => i.text) + "." : "Für heute ist alles erledigt."; }
+  if (/ideen übernehmen|ideen/.test(q)) { const a = ideen(); return a.length ? "Gespeichert: " + a.join("; ") + ". Sag Claude, dass er sie ins Wiki übernehmen soll." : "Es sind keine Ideen gespeichert."; }
+  if (/hilfe|was kannst du|befehle/.test(q)) return "Ich verstehe: Bericht. Was steht heute an. Fristen. Diese Woche. Von gestern. Fokus. Hinweise. Baustellen. Geld. Erledigt, gefolgt vom Stichwort. Idee, gefolgt vom Inhalt. Wie spät ist es.";
+  if (/hallo|jarvis/.test(q)) return "Ich höre, Giuseppe. Sag „Bericht“, wenn du deinen Überblick hören willst.";
+  return "Das habe ich nicht verstanden. Sag „hilfe“ für die Befehle.";
+}
+
+// ---------- Sprechen (Ausgabe) ----------
+let stimmeAn = true, stimme = null;
+function stimmeWaehlen() {
+  const v = speechSynthesis.getVoices().filter(x => x.lang && x.lang.toLowerCase().startsWith("de"));
+  stimme = v.find(x => /natural|online/i.test(x.name)) || v[0] || null;
+}
+if ("speechSynthesis" in window) { stimmeWaehlen(); speechSynthesis.onvoiceschanged = stimmeWaehlen; }
+function sprich(text) {
+  if (!text) return;
+  $("antwort").textContent = text;
+  if (!stimmeAn || !("speechSynthesis" in window)) return;
+  speechSynthesis.cancel();
+  const u = new SpeechSynthesisUtterance(text);
+  u.lang = "de-DE"; if (stimme) u.voice = stimme; u.rate = 1.02;
+  u.onstart = () => { zustand("spricht"); dauerPause(); };
+  u.onend = u.onerror = () => { zustand("bereit"); dauerWeiter(); };
+  speechSynthesis.speak(u);
+}
+$("stumm").onclick = () => { stimmeAn = !stimmeAn; $("stumm").textContent = "Stimme: " + (stimmeAn ? "an" : "aus"); if (!stimmeAn) speechSynthesis.cancel(); };
+$("bericht").onclick = () => sprich(berichtText());
+
+// ---------- Zuhören (Eingabe) ----------
+const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+let erk = null, hoert = false, analyser = null, daten = null;
+function zustand(z) { $("zustand").textContent = z; document.body.dataset.z = z; }
+async function mikStart() {
+  if (analyser) return;
+  try {
+    const strom = await navigator.mediaDevices.getUserMedia({ audio: true });
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    analyser = ctx.createAnalyser(); analyser.fftSize = 256; ctx.createMediaStreamSource(strom).connect(analyser);
+    daten = new Uint8Array(analyser.frequencyBinCount);
+  } catch (e) { analyser = null; }
+}
+function zuhoeren() {
+  if (!SR) { $("antwort").textContent = "Dieser Browser kann nicht zuhören. Bitte Edge oder Chrome nehmen oder unten tippen."; return; }
+  if (hoert) return;
+  speechSynthesis.cancel();
+  erk = new SR(); erk.lang = "de-DE"; erk.interimResults = true; erk.continuous = false;
+  let endgueltig = "";
+  erk.onstart = () => { hoert = true; zustand("hört zu"); $("sprechen").classList.add("an"); $("gehoert").textContent = ""; };
+  erk.onresult = e => { let t = ""; for (const r of e.results) { t += r[0].transcript; if (r.isFinal) endgueltig = t; } $("gehoert").textContent = "„" + t + "“"; };
+  erk.onerror = e => { $("gehoert").textContent = e.error === "not-allowed" ? "Mikrofon nicht erlaubt. In der Adressleiste freigeben." : e.error === "no-speech" ? "Nichts gehört." : ""; };
+  erk.onend = () => { hoert = false; $("sprechen").classList.remove("an"); zustand("bereit"); if (endgueltig) verarbeiteText(endgueltig); };
+  mikStart().then(() => { try { erk.start(); } catch (e) {} });
+}
+
+// Dauerhören: wartet auf "Hey Jarvis" und reagiert nur auf Sätze mit dem Weckwort.
+// Während Jarvis spricht, ruht das Zuhören, damit er sich nicht selbst hört.
+let dauerAn = false, dauerErk = null, redet = false;
+function dauerPause() { redet = true; if (dauerErk) { dauerErk.onend = null; try { dauerErk.abort(); } catch (e) {} dauerErk = null; } }
+function dauerWeiter() { redet = false; if (dauerAn && !dauerErk) setTimeout(dauerStart, 500); }
+function dauerStart() {
+  if (!dauerAn || redet || dauerErk || hoert) return;
+  const r = dauerErk = new SR(); r.lang = "de-DE"; r.continuous = true; r.interimResults = true;
+  r.onresult = e => {
+    for (let i = e.resultIndex; i < e.results.length; i++) {
+      const t = e.results[i][0].transcript;
+      $("gehoert").textContent = "„" + t.trim() + "“";
+      if (!e.results[i].isFinal) { if (document.body.dataset.z !== "spricht") zustand("hört zu"); continue; }
+      zustand("bereit");
+      if (hatWake(t)) verarbeiteText(t); else $("gehoert").textContent = "„" + t.trim() + "“ (kein „Jarvis“, ignoriert)";
+    }
+  };
+  r.onerror = e => { if (e.error === "not-allowed") { dauerSchalten(false); $("gehoert").textContent = "Mikrofon nicht erlaubt."; } };
+  r.onend = () => { dauerErk = null; if (dauerAn && !redet) setTimeout(dauerStart, 400); };
+  try { r.start(); } catch (e) { dauerErk = null; }
+}
+function dauerSchalten(an) {
+  if (an && !SR) { $("antwort").textContent = "Dieser Browser kann nicht zuhören. Bitte Edge oder Chrome nehmen."; return; }
+  dauerAn = an; $("dauer").classList.toggle("an", an); $("dauer").textContent = "Dauerhören: " + (an ? "an" : "aus");
+  if (an) { mikStart().then(dauerStart); } else { dauerPause(); redet = false; zustand("bereit"); }
+}
+$("dauer").onclick = () => dauerSchalten(!dauerAn);
+const aufhoeren = () => { if (erk && hoert) erk.stop(); };
+$("sprechen").addEventListener("mousedown", zuhoeren);
+window.addEventListener("mouseup", aufhoeren);
+window.addEventListener("keydown", e => { if (e.code === "Space" && !e.repeat && document.activeElement !== $("eingabe")) { e.preventDefault(); zuhoeren(); } });
+window.addEventListener("keyup", e => { if (e.code === "Space") aufhoeren(); });
+$("eingabe").addEventListener("keydown", e => { if (e.key === "Enter" && e.target.value.trim()) { $("gehoert").textContent = "„" + e.target.value + "“"; verarbeiteText(e.target.value); e.target.value = ""; } });
+
+// ---------- Sonne ----------
+const cv = $("orb"), c = cv.getContext("2d"), W = cv.width, M = W / 2;
+const funken = Array.from({ length: 70 }, () => ({ w: Math.random() * 6.283, r: 190 + Math.random() * 150, v: (Math.random() - .5) * .005, s: Math.random() * 1.8 + .5 }));
+const farben = { "bereit": "255,138,61", "hört zu": "255,90,60", "spricht": "255,207,122", "startet": "255,207,122" };
+let glatt = 0, skala = 1, skalaZiel = 1;
+const wellen = [];
+function zeichnen(t) {
+  const z = document.body.dataset.z || "bereit", farbe = farben[z] || farben.bereit;
+  let ziel;
+  if (z === "hört zu" && analyser) { analyser.getByteFrequencyData(daten); let s = 0; for (const x of daten) s += x; ziel = Math.min(1, s / daten.length / 90); }
+  else if (z === "spricht") ziel = .35 + .3 * Math.abs(Math.sin(t / 130)) * Math.abs(Math.sin(t / 310));
+  else if (z === "startet") ziel = .45 + .25 * Math.sin(t / 90);
+  else ziel = .08 + .04 * Math.sin(t / 1100);
+  glatt += (ziel - glatt) * .18;
+
+  c.clearRect(0, 0, W, W);
+  skala += (skalaZiel - skala) * .06;
+  c.save(); c.translate(M, M); c.scale(skala, skala); c.translate(-M, -M);
+  // Korona
+  const g = c.createRadialGradient(M, M, 40, M, M, 370 + glatt * 40);
+  g.addColorStop(0, `rgba(${farbe},${.4 + glatt * .45})`); g.addColorStop(.45, `rgba(255,90,60,.12)`); g.addColorStop(1, "rgba(0,0,0,0)");
+  c.fillStyle = g; c.beginPath(); c.arc(M, M, 380, 0, 6.283); c.fill();
+
+  // Sonnenstrahlen, lang und kurz im Wechsel
+  c.save(); c.translate(M, M); c.rotate(t * .00012);
+  for (let i = 0; i < 72; i++) {
+    const a = i / 72 * 6.283, lang = i % 2 === 0;
+    const l = (lang ? 70 : 34) + glatt * (lang ? 90 : 55) * (.55 + .45 * Math.sin(i * 1.9 + t / 170));
+    c.strokeStyle = `rgba(${farbe},${lang ? .8 : .5})`; c.lineWidth = lang ? 4 : 2.5; c.lineCap = "round";
+    c.beginPath(); c.moveTo(Math.cos(a) * 150, Math.sin(a) * 150); c.lineTo(Math.cos(a) * (150 + l), Math.sin(a) * (150 + l)); c.stroke();
+  }
+  c.restore();
+  // Ringe
+  [[262, 1, .0003], [236, -1, .0006]].forEach(([r, d, sp], k) => {
+    c.save(); c.translate(M, M); c.rotate(t * sp * d); c.strokeStyle = `rgba(${farbe},${.45 - k * .1})`; c.lineWidth = 2;
+    for (let i = 0; i < 8; i++) { c.beginPath(); c.arc(0, 0, r + glatt * 10, i * .7854 + .1, i * .7854 + .55); c.stroke(); }
+    c.restore();
+  });
+  // Druckwellen bei jedem neuen Satz
+  for (let i = wellen.length - 1; i >= 0; i--) {
+    const a = (t - wellen[i]) / 1400;
+    if (a > 1) { wellen.splice(i, 1); continue; }
+    c.strokeStyle = `rgba(${farbe},${.7 * (1 - a)})`; c.lineWidth = 5 * (1 - a) + 1;
+    c.beginPath(); c.arc(M, M, 160 + a * 210, 0, 6.283); c.stroke();
+  }
+  // Radar-Strahl während der Vorführung
+  if (document.body.classList.contains("show")) {
+    c.save(); c.translate(M, M); c.rotate(t * .0018);
+    c.fillStyle = `rgba(${farbe},.10)`; c.beginPath(); c.moveTo(0, 0); c.arc(0, 0, 330, -.9, 0); c.closePath(); c.fill();
+    c.strokeStyle = `rgba(${farbe},.55)`; c.lineWidth = 2; c.beginPath(); c.moveTo(0, 0); c.lineTo(330, 0); c.stroke();
+    c.restore();
+  }
+  // Sonnenkörper mit Verlauf: Gold oben, Glut unten
+  const r0 = 138 + glatt * 18;
+  const k = c.createRadialGradient(M - 20, M - 34, 8, M, M, r0);
+  k.addColorStop(0, "rgba(255,246,214,1)"); k.addColorStop(.28, "rgba(255,207,122,1)"); k.addColorStop(.62, "rgba(255,122,52,1)"); k.addColorStop(1, "rgba(214,52,56,.95)");
+  c.fillStyle = k; c.shadowColor = `rgba(${farbe},.9)`; c.shadowBlur = 40 + glatt * 40; c.beginPath(); c.arc(M, M, r0, 0, 6.283); c.fill(); c.shadowBlur = 0;
+  // Horizontstreifen im unteren Teil, wie eine tiefe Abendsonne
+  c.save(); c.beginPath(); c.arc(M, M, r0 - 1, 0, 6.283); c.clip();
+  c.fillStyle = "rgba(60,10,22,.55)";
+  for (let i = 0; i < 5; i++) { const y = M + 40 + i * 20; c.fillRect(M - r0, y, r0 * 2, 3 + i * 1.6); }
+  c.restore();
+  // Funken
+  funken.forEach(p => {
+    p.w += p.v * (1 + glatt * 6);
+    const rr = p.r + Math.sin(t / 700 + p.w * 3) * 12 + glatt * 40;
+    c.fillStyle = `rgba(255,${160 + Math.round(60 * Math.sin(p.w))},90,${.35 + .4 * Math.sin(t / 500 + p.w)})`;
+    c.beginPath(); c.arc(M + Math.cos(p.w) * rr, M + Math.sin(p.w) * rr, p.s, 0, 6.283); c.fill();
+  });
+  c.restore();
+  requestAnimationFrame(zeichnen);
+}
+zustand("bereit");
+requestAnimationFrame(zeichnen);
+
+// ---------- Vorführung (fürs Video) ----------
+// Zeigt standardmäßig Beispieldaten, damit keine echten Namen oder Verfahrensdetails im Video landen.
+// Mit "index.html?echt" läuft sie mit den echten Tagesdaten.
+const SHOW_ECHT = location.search.includes("echt");
+const DEMO = (() => {
+  const plus = n => { const d = new Date(); d.setDate(d.getDate() + n); return d; };
+  const wann = n => { const d = plus(n); return tage[d.getDay()].slice(0, 2) + " " + String(d.getDate()).padStart(2, "0") + "." + String(d.getMonth() + 1).padStart(2, "0") + "."; };
+  return {
+    stand: heuteIso,
+    heute: [
+      { text: "Umsatzsteuer-Voranmeldung abschicken", art: "Frist" },
+      { text: "Angebot für das Autohaus fertig machen", art: "Kunde" },
+      { text: "Gespräch mit einem neuen Kunden", art: "Kunde" },
+      { text: "Instagram-Reel schneiden", art: "offen" },
+      { text: "Abendessen mit der Familie", art: "Termin" }
+    ],
+    fristen: [
+      { datum: iso(plus(2)), text: "Umsatzsteuer-Voranmeldung" },
+      { datum: iso(plus(9)), text: "Angebot Autohaus-Website abgeben" },
+      { datum: iso(plus(40)), text: "Versicherung prüfen" }
+    ],
+    woche: [
+      { wann: wann(1), text: "Reel veröffentlichen, Kundentermin im Autohaus" },
+      { wann: wann(2), text: "Neue Folge der KI-Videoserie drehen" },
+      { wann: wann(4), text: "Workshop ansehen und Notizen machen" }
+    ],
+    spaeter: ["Strom-Abschlag prüfen", "Alten Rechner aufräumen"],
+    gestern: ["Angebot Autohaus: Entwurf (offen)", "Kunden zurückrufen (offen)"],
+    wartet: ["Kunde: Freigabe für das Design"],
+    fokus: { belegt: 2, max: 2, namen: ["Website für ein Autohaus", "KI-Videoserie"] },
+    gespraeche: { zahl: 6, ziel: 10 },
+    geld: "",
+    hinweise: ["Heute zuerst die Frist, dann die Kundengespräche.", "Fokusregel: Ein neues Projekt startet erst, wenn eines fertig ist."],
+    warteschlange: [
+      { name: "Voice Agent für Kunden", schritt: "Vorführung bauen, dann Kunden zeigen" },
+      { name: "Community-Seite", schritt: "Basis-Seite, dann Vorstellungsvideo" },
+      { name: "Automatische Video-Themen", schritt: "Tool sammelt KI-Neuigkeiten und liefert Themen" }
+    ],
+    baustellen: [
+      { prio: "A1", name: "Website für ein Autohaus", schritt: "Entwurf zeigen" },
+      { prio: "A2", name: "KI-Videoserie", schritt: "Skript für Folge 3" },
+      { prio: "B1", name: "Voice Agent", schritt: "Vorführung vorbereiten" },
+      { prio: "C1", name: "Neues Tool für Inhalte", schritt: "Ideen sammeln" }
+    ]
+  };
+})();
+const DEMO_IDEEN = ["Reel: So baue ich meine eigene Kommandozentrale", "Newsletter zu KI-Werkzeugen"];
+
+let actx = null;
+function ton(f1, f2, d, typ = "sine", v = .05) {
+  try {
+    actx = actx || new (window.AudioContext || window.webkitAudioContext)();
+    const o = actx.createOscillator(), g = actx.createGain(), n = actx.currentTime;
+    o.type = typ; o.frequency.setValueAtTime(f1, n); o.frequency.exponentialRampToValueAtTime(f2, n + d);
+    g.gain.setValueAtTime(v, n); g.gain.exponentialRampToValueAtTime(.0001, n + d);
+    o.connect(g).connect(actx.destination); o.start(); o.stop(n + d);
+  } catch (e) {}
+}
+const warte = ms => new Promise(r => setTimeout(r, ms));
+let tippId = 0;
+function tippe(text) {
+  const id = ++tippId, el = $("antwort"), start = performance.now(), dauer = Math.max(600, text.length * 55);
+  el.textContent = "";
+  (function s() {
+    if (id !== tippId) return;
+    const n = Math.min(text.length, Math.round((performance.now() - start) / dauer * text.length));
+    el.textContent = text.slice(0, n);
+    if (n < text.length) requestAnimationFrame(s);
+  })();
+}
+// Kürzel so schreiben, wie sie gesprochen werden: "Sa 10.10." -> "Samstag 10. Oktober"
+const wochentagLang = { Mo: "Montag", Di: "Dienstag", Mi: "Mittwoch", Do: "Donnerstag", Fr: "Freitag", Sa: "Samstag", So: "Sonntag" };
+const lautschrift = s => s.replace(/\b(Mo|Di|Mi|Do|Fr|Sa|So)\s(?=\d)/g, (m, k) => wochentagLang[k] + " ").replace(/\b(\d{1,2})\.(\d{1,2})\.(?!\d)/g, (m, d, mo) => +d + ". " + monate[+mo - 1]);
+function sage(text, nachher = "startet") {
+  text = lautschrift(text);
+  return new Promise(res => {
+    tippe(text);
+    if (!stimmeAn || !("speechSynthesis" in window)) { setTimeout(res, text.length * 60 + 600); return; }
+    speechSynthesis.cancel();
+    const u = new SpeechSynthesisUtterance(text); u.lang = "de-DE"; if (stimme) u.voice = stimme; u.rate = 1;
+    let aus = false; const ende = () => { if (!aus) { aus = true; zustand(nachher); dauerWeiter(); res(); } };
+    u.onstart = () => { zustand("spricht"); dauerPause(); wellen.push(performance.now()); ton(300, 700, .25, "sine", .05); };
+    u.onend = u.onerror = ende;
+    speechSynthesis.speak(u);
+    setTimeout(ende, text.length * 120 + 4000);
+  });
+}
+const panelVon = id => $(id).closest(".panel");
+function licht(id) {
+  document.querySelectorAll(".panel.im-licht").forEach(p => p.classList.remove("im-licht"));
+  if (!id) { document.body.classList.remove("dim"); return; }
+  const p = panelVon(id); p.classList.add("im-licht"); document.body.classList.add("dim");
+  p.scrollIntoView({ behavior: "smooth", block: "nearest" });
+}
+
+// Video-Modus: zeigt und liest dauerhaft nur Beispieldaten vor (auch bei normalen Befehlen wie "Bericht").
+let videoAn = false, vorVideo = null;
+function videoSchalten(an) {
+  if (an === videoAn || showLaeuft) return;
+  videoAn = an;
+  if (an) { vorVideo = JSON.parse(JSON.stringify(D)); Object.assign(D, DEMO); alles(); liste("ideen", DEMO_IDEEN, i => esc(i)); $("ideenhinweis").textContent = ""; }
+  else { Object.assign(D, vorVideo); alles(); ideenZeigen(); }
+  $("video").classList.toggle("an", an); $("video").textContent = "Video-Modus: " + (an ? "an" : "aus");
+  $("warnung").hidden = an || D.stand === heuteIso;
+}
+$("video").onclick = () => videoSchalten(!videoAn);
+
+let showLaeuft = false, showAbbruch = false;
+async function startShow() {
+  if (showLaeuft) return;
+  showLaeuft = true; showAbbruch = false;
+  const sicherung = JSON.parse(JSON.stringify(D));
+  const warnWar = $("warnung").hidden;
+  const panels = [...document.querySelectorAll(".panel")];
+  const tauschen = !SHOW_ECHT && !videoAn;
+  try {
+    if (tauschen) { Object.assign(D, DEMO); }
+    alles();
+    if (tauschen) { liste("ideen", DEMO_IDEEN, i => esc(i)); $("ideenhinweis").textContent = ""; }
+    $("warnung").hidden = true;
+    document.querySelectorAll(".spalte").forEach(s => { s.scrollTop = 0; });
+    speechSynthesis.cancel();
+    document.body.classList.add("show");
+    panels.forEach(p => p.classList.add("verborgen"));
+    zustand("startet"); skalaZiel = .06; $("gehoert").textContent = "";
+
+    // Start: Scan-Linie, Sonne geht auf, Felder blenden nacheinander ein
+    ton(70, 1200, 1.6, "sawtooth", .04);
+    $("scan").classList.remove("lauf"); void $("scan").offsetWidth; $("scan").classList.add("lauf");
+    await warte(500); skalaZiel = 1; wellen.push(performance.now());
+    tippe("SYSTEME STARTEN …\nKern online\nKalender synchron\nFristen geprüft");
+    for (let i = 0; i < panels.length && !showAbbruch; i++) {
+      await warte(130);
+      panels[i].classList.remove("verborgen"); panels[i].classList.add("einblenden");
+      ton(700 + i * 70, 1100 + i * 70, .1, "square", .025);
+      setTimeout(() => panels[i].classList.remove("einblenden"), 700);
+    }
+    await warte(900);
+
+    const o = D.heute.filter(i => !fertig(i.text));
+    const f = D.fristen.slice().sort((a, b) => a.datum.localeCompare(b.datum))[0];
+    const g = D.gespraeche;
+    const schritte = [
+      [null, "Hallo Giuseppe. Alle Systeme sind bereit. Heute ist " + $("datum").textContent + "."],
+      ["heute", o.length ? `Heute stehen ${o.length} Dinge an. Zuerst: ${o[0].text}.` + (o[1] ? ` Danach: ${o[1].text}.` : "") : "Für heute ist alles erledigt."],
+      ["fristen", f ? `Die nächste Frist: ${f.text}, ${countdown(tageBis(f.datum))}.` : null],
+      ["woche", D.woche.length ? "Diese Woche: " + D.woche.slice(0, 2).map(t => t.wann + ", " + t.text).join(". Danach: ") + "." : null],
+      ["fokus", `Fokus: ${D.fokus.belegt} von ${D.fokus.max} Aufbauplätzen belegt. Alles unter Kontrolle.`],
+      ["gespraeche", g.zahl != null ? `Kundengespräche diese Woche: ${g.zahl} von ${g.ziel}.` : null],
+      ["warteschlange", D.warteschlange.length ? "In der Warteschlange warten: " + D.warteschlange.map(w => w.name).join(", ") + "." : null],
+      [null, "Das war dein Überblick."],
+      [null, ((window.DIALOGE || []).find(d => d.abschluss) || {}).sage || "Sag Bescheid, wenn du mehr brauchst."]
+    ];
+    for (const [id, text] of schritte) {
+      if (showAbbruch) break;
+      if (!text) continue;
+      licht(id);
+      await sage(text);
+      await warte(350);
+    }
+  } finally {
+    licht(null); tippId++;
+    await warte(600);
+    document.body.classList.remove("show", "dim");
+    panels.forEach(p => p.classList.remove("verborgen", "einblenden", "im-licht"));
+    skalaZiel = 1; speechSynthesis.cancel();
+    Object.assign(D, sicherung); alles();
+    if (videoAn) { liste("ideen", DEMO_IDEEN, i => esc(i)); $("ideenhinweis").textContent = ""; } else ideenZeigen();
+    $("warnung").hidden = warnWar;
+    $("antwort").textContent = "Vorführung beendet. Sag „Bericht“, wenn du deinen Überblick hören willst.";
+    zustand("bereit"); showLaeuft = false;
+  }
+}
+$("vorfuehrung").onclick = startShow;
+window.addEventListener("keydown", e => {
+  if (e.code === "Escape" && showLaeuft) { showAbbruch = true; speechSynthesis.cancel(); }
+  else if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && document.activeElement !== $("eingabe")) {
+    if (e.code === "KeyV") startShow();
+    else if (e.code === "KeyJ") dauerSchalten(!dauerAn);
+    else if (e.code === "KeyM") videoSchalten(!videoAn);
+  }
+});
+</script>
+</body>
+</html>
